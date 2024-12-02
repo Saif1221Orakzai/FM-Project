@@ -9,6 +9,56 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.secret_key = 'supersecretkey'
 
+# Ensure uploads directory exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+feature_map = {
+    'Application': 1,
+    'Catalog': 2,
+    'Filtered': 3,
+    'Notification': 4,
+    'Location': 5,
+    'Payment': 6,
+    'WiFi': 7,
+    'GPS': 8,
+    'CreditCard': 9,
+    'Discount': 10,
+    'ByDiscount': 11,
+    'ByWeather': 12,
+    'ByLocation': 13,
+    'SMS': 14,
+    'Call': 15
+}
+
+def validate_logic_formula(logic_formula):
+    """
+    Checks if the logic formula contains only valid literals and operators.
+    """
+    # Define valid literals and operators
+    valid_literals = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+    valid_operators = {'∧', '∨', '¬', '(', ')'}
+    
+    # Check for invalid characters
+    for char in logic_formula:
+        if char not in valid_literals and char not in valid_operators and char != ' ':
+            print(f"Warning: Invalid character '{char}' in logic formula.")
+            return False
+
+    # Check if the formula has balanced parentheses
+    open_parens = 0
+    for char in logic_formula:
+        if char == '(':
+            open_parens += 1
+        elif char == ')':
+            open_parens -= 1
+        if open_parens < 0:
+            return False
+
+    if open_parens != 0:
+        return False
+
+    return True
+
 # Routes
 @app.route('/')
 def home():
@@ -37,20 +87,20 @@ def visualize():
     filepath = request.args.get('filepath')
     feature_model = parse_feature_model(filepath)
     logic_formula = translate_to_propositional_logic(feature_model)
-    
-    # Convert the parsed features into options for the user to select
-    feature_names = feature_model['features']  # Assuming `parse_feature_model` returns a dictionary with a 'features' key
-    
-    return render_template('visualize.html', model=feature_model, logic=logic_formula, features=feature_names)
+
+    return render_template('visualize.html', model=feature_model, logic=logic_formula, features=feature_model['features'])
 
 @app.route('/validate', methods=['POST'])
 def validate_selection():
-    # Get the selected features from the form
-    selected_features = [int(feature) for feature in request.form.getlist('features')]  # Convert to integers
-    
-    # Get the propositional logic formula from the form (you may need to handle it better if it is not in a simple format)
     logic_formula = request.form.get('logic')
     
+    # Map selected features (name) to their integer IDs
+    selected_features = [feature_map[feature] for feature in request.form.getlist('features')]
+
+    # Validate the logic formula
+    if not validate_logic_formula(logic_formula):
+        return jsonify({'is_valid': False, 'reasons': ['Invalid characters in the formula']})
+
     # Check if the configuration is valid
     is_valid, reasons = check_configuration(selected_features, logic_formula)
     
@@ -58,29 +108,13 @@ def validate_selection():
 
 @app.route('/minimize', methods=['POST'])
 def minimize_features():
-    # Get the selected features from the form
-    selected_features = [int(feature) for feature in request.form.getlist('features')]
-    
-    # Get the propositional logic formula from the form
     logic_formula = request.form.get('logic')
-    
-    # Parse the logic formula into clauses
-    clauses = [parse_clause(clause) for clause in logic_formula.split(' ∧ ')]
-    
-    # Find the minimal working product (set of features)
-    minimum_working_set = find_minimum_working_product(clauses, selected_features)
-    
-    return jsonify({'minimum_working_set': minimum_working_set})
+    selected_features = request.form.getlist('features')
 
-# Helper function to parse the clauses into a format suitable for the SAT solver
-def parse_clause(clause):
-    """
-    Convert a clause from propositional logic to a format suitable for SAT solver.
-    Clause should be in the form 'p ∨ q ∨ ¬r'
-    This function converts it to a list of integers, where ¬ is represented by a negative sign.
-    """
-    literals = clause.replace('¬', '-').split(' ∨ ')
-    return [int(lit.strip()) for lit in literals]
+    clauses = [clause.split(' ∨ ') for clause in logic_formula.split(' ∧ ')]
+    minimum_working_set = find_minimum_working_product(clauses, selected_features)
+
+    return jsonify({'minimum_working_set': minimum_working_set})
 
 if __name__ == '__main__':
     app.run(debug=True)

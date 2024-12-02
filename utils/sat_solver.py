@@ -1,22 +1,39 @@
-from pycosat import solve
+from pysat.formula import CNF
+from pysat.solvers import Solver
 
 def check_configuration(selected_features, logic_formula):
     """
-    Check if the selected features satisfy the given propositional logic formula.
+    Checks if the selected features satisfy the propositional logic formula.
     """
-    clauses = [parse_clause(clause) for clause in logic_formula.split(' ∧ ')]
-    is_valid = solve(clauses, assumptions=selected_features)
-    reasons = [] if is_valid else "Unsatisfiable"  # Reason could be model or failure
-    return is_valid, reasons
+    # Convert the logic formula into clauses
+    clauses = []
+    for clause in logic_formula.split(" ∧ "):  # Split into individual clauses
+        literals = clause.replace("¬", "-").split(" ∨ ")  # Convert ¬ to negative literals
+        cleaned_literals = [lit.strip() for lit in literals if lit.strip() and lit.strip() != "()"]
+        if cleaned_literals:
+            clauses.append([int(lit) for lit in cleaned_literals])  # Convert to integers
 
-def parse_clause(clause):
-    """
-    Convert a clause from propositional logic to a format suitable for SAT solver.
-    Clause should be in the form 'p ∨ q ∨ ¬r'
-    This function converts it to a list of integers, where ¬ is represented by a negative sign.
-    """
-    literals = clause.replace('¬', '-').split(' ∨ ')
-    return [int(lit.strip()) for lit in literals]
+    # Debugging: Print the clauses
+    print("Clauses:", clauses)
+
+    # Create a CNF object with the clauses
+    cnf = CNF(from_clauses=clauses)
+
+    # Convert selected_features to integer literals (positive for selected, negative for deselected)
+    assumptions = [int(f) for f in selected_features]
+
+    # Debugging: Print assumptions
+    print("Assumptions:", assumptions)
+
+    # Check if the configuration satisfies the CNF formula
+    with Solver(bootstrap_with=cnf) as solver:
+        is_valid = solver.solve(assumptions=assumptions)
+        reasons = [] if is_valid else ["Configuration is unsatisfiable"]
+        
+        # Debugging: Output result of solver
+        print("Solver Result:", is_valid)
+        
+        return is_valid, reasons
 
 def find_minimum_working_product(clauses, selected_features):
     """
@@ -24,17 +41,18 @@ def find_minimum_working_product(clauses, selected_features):
     This function will simplify the clause set iteratively by removing features
     that do not affect the result.
     """
-    # Try the selected features first
-    result = solve(clauses, assumptions=selected_features)
-    
-    if result:
-        # Once we find a valid configuration, try to minimize the set of selected features
-        working_set = selected_features.copy()
-        for feature in selected_features:
-            temp_set = working_set.copy()
-            temp_set.remove(feature)
-            # Test if removing the feature still results in a valid solution
-            if not solve(clauses, assumptions=temp_set):
-                working_set.remove(feature)  # If it no longer satisfies, keep the feature
-        return working_set
-    return []  # Return an empty list if no solution found
+    with Solver(bootstrap_with=clauses) as solver:
+        # First, check if the selected features provide a valid configuration
+        if solver.solve(assumptions=selected_features):
+            # Working set initially is all selected features
+            working_set = selected_features.copy()
+
+            # Try removing features to find a minimal working set
+            for feature in selected_features:
+                temp_set = working_set.copy()
+                temp_set.remove(feature)
+                if solver.solve(assumptions=temp_set):
+                    working_set.remove(feature)  # Feature can be safely removed
+            return working_set
+        else:
+            return []  # No valid configuration found

@@ -1,32 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Feature Model Visualization</title>
 </head>
 <body>
     <h1>Feature Model Visualization</h1>
-    <h3>Features:</h3>
-    <form action="{{ url_for('validate_selection') }}" method="POST">
+    <form action="/validate" method="post">
+        <h3>Select Features:</h3>
         {% for feature in features %}
-            <input type="checkbox" name="features" value="{{ feature }}" /> {{ feature }} <br>
+            <label>
+                <input type="checkbox" name="features" value="{{ feature.name }}">
+                {{ feature.name }}
+            </label><br>
         {% endfor %}
-        <input type="hidden" name="logic" value="{{ logic }}" />
-        <button type="submit">Validate Selection</button>
+        <input type="hidden" name="logic" value="{{ logic }}">
+        <button type="submit">Validate</button>
     </form>
-
-    <h3>Minimal Feature Set:</h3>
-    <form action="{{ url_for('minimize_features') }}" method="POST">
-        {% for feature in features %}
-            <input type="checkbox" name="features" value="{{ feature }}" /> {{ feature }} <br>
-        {% endfor %}
-        <input type="hidden" name="logic" value="{{ logic }}" />
-        <button type="submit">Minimize Features</button>
-    </form>
-
-    <script>
-        // JavaScript code to handle form submissions or show validation results
-    </script>
 </body>
 </html>
